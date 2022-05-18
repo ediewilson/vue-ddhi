@@ -25,6 +25,9 @@ export default {
             entityAnchor: '',
         }
     },
+    props: {
+      item: Object,
+    },
     methods: {
         async connectedCallback() {
             super.connectedCallback();

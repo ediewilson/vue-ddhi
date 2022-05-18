@@ -22,7 +22,9 @@
           </div>
         </div>
         <!--<div class='labels'><span class='devnote'>Entity descriptions to come.</span></div>-->
-        <div class='entity-grid'></div>
+        <div class='entity-grid'>
+          <EntityCard v-for="item in entityGrid" :item="item" v-bind:key="item.id" />
+        </div>
       </div>
 </template>
 <script>
@@ -34,7 +36,7 @@ export default {
     },
     data() {
         return {
-
+          entityGrid: [],
         }
     },
      watch: {
@@ -80,7 +82,7 @@ export default {
    *  - The render() process checks the value of the sort and filter controls, retrieves the values from the selected sort index, and renders.
    */
 
-  async attributeChangedCallback(attrName, oldVal, newVal) {
+  async attributeChangedCallback(attrName) {
     if(attrName == 'ddhi-active-id') {
       await this.getItemDataById();
       this.getMentionedEntities();
@@ -106,7 +108,7 @@ export default {
     _this.setAttribute('entity-filter','all');
 
     filterElement.addEventListener('change', event => {
-      var element = event.currentTarget;
+     // var element = event.currentTarget;
       _this.setAttribute('entity-filter',event.target.value);
     });
 
@@ -119,7 +121,7 @@ export default {
     _this.setAttribute('entity-sort','appearance');
 
     sortElement.addEventListener('change', event => {
-      var element = event.currentTarget;
+     // var element = event.currentTarget;
       _this.setAttribute('entity-sort',event.target.value);
     });
 
@@ -137,7 +139,7 @@ export default {
     window.setTimeout(function() { grid.style.display = 'none' }, this.heartbeat);
 
 
-    entities.forEach(function(entity,i) {
+    entities.forEach(function(entity) {
 
       if (filterValue == 'all') {
         entity.style.display = 'block';
@@ -157,7 +159,7 @@ export default {
   render() {
 
     const grid = this.shadowRoot.querySelector('.entity-grid');
-    const entities = this.shadowRoot.querySelectorAll('entity-card');
+    // const entities = this.shadowRoot.querySelectorAll('entity-card');
     const sortValue = this.getAttribute('entity-sort');
 
     if (typeof this.sortIndex[sortValue] == 'undefined') {
@@ -188,7 +190,7 @@ export default {
   indexEntities() {
     this.resetIndices();
     var _this = this;
-    var item = this.getItemData();
+    // var item = this.getItemData();
     var entityGrid = this.shadowRoot.querySelector('.entity-grid');
 
     entityGrid.textContent = '';
@@ -212,7 +214,7 @@ export default {
 
     // count order of appearance
 
-    var i = 1;
+    // var i = 1;
 
     // Iterate over appearances by order of mention
 
@@ -224,10 +226,10 @@ export default {
       var entity = _this.mentionedEntities[id];
       //  console.log("Entity in get mentioned: ", entity);
 
-      if (entityMention.hasOwnProperty(entity.id)) {
+      if (Object.prototype.hasOwnProperty.call(entityMention, entity.id)) {
         entityMention[entity.id] ++;
       } 
-      else if (entity.resource_type ==='date' && entityMention.hasOwnProperty(entity.when)) {
+      else if (entity.resource_type ==='date' && Object.prototype.hasOwnProperty.call(entityMention, entity.when)) {
         entityMention[entity.when] ++;
       }
       else if(entity.resource_type === 'date'){
@@ -241,7 +243,7 @@ export default {
 
       // Create a new entity card, set attributes, and attach the entity data
 
-      var entity = _this.mentionedEntities[id];
+      // var entity = _this.mentionedEntities[id];
       var entityCard = document.createElement('entity-card');
       entityCard.setAttribute('data-title',entity.title);
       entityCard.setAttribute('data-entity-id',entity.id);
@@ -259,7 +261,7 @@ export default {
       // Add date information as attributes
 
 
-      if (entity.resource_type === 'event' && _this.eventDateIndex.hasOwnProperty(entity.id)) {
+      if (entity.resource_type === 'event' && Object.prototype.hasOwnProperty.call(_this.eventDateIndex, entity.id)) {
         entityCard.setAttribute('data-start-date',_this.eventDateIndex[entity.id].startDate);
         entityCard.setAttribute('data-end-date',_this.eventDateIndex[entity.id].endDate);
         entityCard.setAttribute('data-point-in-time',_this.eventDateIndex[entity.id].pointInTime);
@@ -278,16 +280,17 @@ export default {
         label.appendChild(document.createTextNode(labelstr));
       }
       else {
+        let month;
         if(entity.when.length === 4) {
           label.appendChild(document.createTextNode(entity.when));
         }
         else if(entity.when.length === 7) {
-          var month = entity.when.substring(5,7)
+          month = entity.when.substring(5,7)
           
           label.appendChild(document.createTextNode(monthLengths[month].name + ' ' + entity.when.substring(0,4)));
         }
         else if(entity.when.length === 10) {
-          var month = entity.when.substring(5,7)
+          month = entity.when.substring(5,7)
           
           label.appendChild(document.createTextNode(monthLengths[month].name + ' ' + entity.when.substring(8,10) + ', ' + entity.when.substring(0,4)));
         }
@@ -322,7 +325,7 @@ export default {
 
       _this.entityCardIndex[entity.id] = entityCard;  // Add card to general index for lookup
       if(entity.title) {
-        entityGrid.appendChild(entityCard);  // Add card to grid
+        this.entityGrid.appendChild(entityCard);  // Add card to grid
       }
     });
 
@@ -406,7 +409,7 @@ export default {
 
       var j=0;
       for(var k = 0; k < len; k++) {
-        var id = a[k].id;
+        id = a[k].id;
         var key = a[k].key;
         if(seen[id] === key) { // if the highest number of mentions (seen) is the current entity mention count, output
           out[j++] = a[k];

@@ -12,11 +12,11 @@ export default {
     name: 'Transcript',
     data() {
         return {
-            selectedEntity,
+            selectedEntity: '',
             selectedEntityElements: [],
-            previousSelectedEntity, // Used to detect a change in selected entities.
-            multiInterview,
-            ids,
+            previousSelectedEntity: '', // Used to detect a change in selected entities.
+            multiInterview: {},
+            ids: '',
         }
     },
        watch: {
@@ -36,13 +36,13 @@ export default {
     var component = this;
 
     super.connectedCallback();
-    this.shadowRoot.querySelector('.previous').addEventListener('click', event => {
+    this.shadowRoot.querySelector('.previous').addEventListener('click', () => {
       if (this.selectedEntity != null) {
         component.decrementSelectedEntityIndex();
         component.focusSelectedEntity();
       }
     });
-    this.shadowRoot.querySelector('.next').addEventListener('click', event => {
+    this.shadowRoot.querySelector('.next').addEventListener('click', () => {
       if (this.selectedEntity != null) {
         component.incrementSelectedEntityIndex();
         component.focusSelectedEntity();
@@ -63,7 +63,7 @@ export default {
   // @description HTMLElement listener that detects changes to attributes. If the active
   //   ids are changed it triggers a transcript load process.
 
-  async attributeChangedCallback(attrName, oldVal, newVal) {
+  async attributeChangedCallback(attrName) {
     if(attrName == 'ddhi-active-id') {
       await this.getItemDataById();
       this.multiInterview;
@@ -217,7 +217,7 @@ export default {
   render() {
     var item = this.getItemData();
 
-    if (item.hasOwnProperty('transcript')) {
+    if (Object.prototype.hasOwnProperty.call(item, 'transcript')) {
       this.renderValue(this.shadowRoot.querySelector('.info'),item.transcript);
     }
   },
@@ -225,7 +225,7 @@ export default {
   renderMulti(id) {
       var item = this.multiInterview[id];
   
-      if (item.hasOwnProperty('transcript')) {
+      if (Object.prototype.hasOwnProperty.call(item, 'transcript')) {
         this.renderValue(this.shadowRoot.querySelector('.info'),item.transcript);
       }
     

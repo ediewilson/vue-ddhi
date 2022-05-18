@@ -9,15 +9,27 @@
         <label for="multi">Multi</label>
         </div>
           <header>Select an interview:</header>
-          <ul id='interview-menu'></ul>
+          <ul id='interview-menu'>
+            <li v-for="(item, key, index) in availableIds" :key="key"> {{this.availableIds[index]}} </li>
+          </ul>
         </section>
         <section id='stage'>
           <header>
             <div id='title'></div>
-            <div id='vizcontrols'><select></select><div class='formlabel'>Select a visualization.</div></div>
+            <div id='vizcontrols'>
+                <select>
+                    <option value='entity-browser'>DDHI Entity Browser</option>
+                    <option value='map-tool'>Map tool</option>
+                    <option value='timeline-tool'>Timeline tool</option>
+                </select>
+                <div class='formlabel'>Select a visualization.</div></div>
           </header>
           <div id='visualizations'>
-            <slot name='visualizations'></slot>
+            <slot name='visualizations'>
+                <EntityBrowser v-if="selectedViz == 'entity-browser'"/>
+                <Map v-if="selectedViz == 'map-tool'"/>
+                <Timeline v-if="selectedViz == 'timeline-tool'" />
+            </slot>
           </div>
           <footer>
             <div id='media-player' propagate>
@@ -41,10 +53,18 @@
         </section>
         <section id='information-viewer'>
           <header>
-            <div id='ivcontrols'><select></select><span class='formlabel'>Select an information display.</span></div>
+            <div id='ivcontrols'>
+                <select>
+                <option value='transcript'>DDHI Transcript Viewer</option>
+                <option value='wiki-viewer' >Wikipedia Viewer</option>
+                </select>
+                <span class='formlabel'>Select an information display.</span></div>
             <div id='tei-link'><a title='Download TEI XML File' download></a></div>
           </header>
-          <slot id='infopanels' name='infopanels'></slot>
+          <slot id='infopanels' name='infopanels'>
+              <Transcript v-if="infoPanelType == 'transcript'"/>
+              <WikidataViewer v-if="selectedViz == 'wiki-viewer'" />
+          </slot>
         </section>
     </div>
     </div>
@@ -68,16 +88,18 @@ export default {
     },
     data () {
         return {
-            visContainer,
-            infoContainer,
+            visContainer: '',
+            infoContainer: '',
             visualizations: [],
             infoPanels: [],
-            titleContainer,
-            vizcontrols, // Selection mechanism for visualizations
-            ivcontrols, // Selection mechanism for information view
+            titleContainer: '',
+            vizcontrols: '', // Selection mechanism for visualizations
+            ivcontrols: '', // Selection mechanism for information view
             vizMode: 'single',
-            selectedEntity,
-            activeIds
+            selectedViz: 'entity-browser',
+            selectedEntity: '',
+            activeIds: '',
+            infoPanelType: 'transcript',
         }
     },
     created () {
@@ -92,6 +114,9 @@ export default {
     }
   },
     methods: {
+        changeViz(type) {
+            this.selectedViz = type;
+        },
 
   async connectedCallback() {
     super.connectedCallback();
@@ -104,7 +129,7 @@ export default {
 
     // localized version for subroutines.
 
-    var viewer = this;
+    // var viewer = this;
 
 
     // Assign viewer header
@@ -188,7 +213,7 @@ export default {
     const index = this.activeIds.indexOf(id);
     if (index == -1) {
       this.activeIds.push(id);
-      this.$store.commit('getActiveIds', {ids: this.activeIds})
+      this.$store.commit('setActiveIds', {ids: this.activeIds})
     }
     this.propagateActiveIds();
   },
@@ -201,12 +226,12 @@ export default {
 
     if (id==null) {
       this.activeIds = [];
-      this.$store.commit('getActiveIds', {ids: this.activeIds})
+      this.$store.commit('setActiveIds', {ids: this.activeIds})
     } else {
       const index = this.activeIds.indexOf(id);
       if (index > -1) {
         this.activeIds.splice(index, 1);
-        this.$store.commit('getActiveIds', {ids: this.activeIds})
+        this.$store.commit('setActiveIds', {ids: this.activeIds})
       }
       this.propagateActiveIds();
     }
@@ -216,7 +241,7 @@ export default {
     this.vizMode = type;
     if(this.vizMode == 'single') {
       var first = this.activeIds[0]
-      var active = this.shadowRoot.querySelector('a[data-id=\"'+first+'"]')
+      var active = this.shadowRoot.querySelector('a[data-id="'+first+'"]')
       active.click();
       this.activateId(first);
       this.$store.commit('getActiveIds', {ids: [first]})
@@ -232,7 +257,7 @@ export default {
   //   trigger the attributeChangedCallback when their values change.
   // @return An array of monitored attributes.
 
-  async attributeChangedCallback(attrName, oldVal, newVal) {
+  async attributeChangedCallback(attrName) {
     if(attrName == 'ddhi-active-id') {
       await this.getItemDataById();
 
@@ -338,8 +363,7 @@ export default {
 
 
     viewer.vizcontrols.addEventListener('change', event => {
-      var element = event.currentTarget;
-      viewer.visualizations.forEach(function(e,i) {
+      viewer.visualizations.forEach(function(e) {
         e.style.display = 'none';
         e.removeAttribute('foreground')
       });
@@ -350,8 +374,7 @@ export default {
     });
 
     viewer.ivcontrols.addEventListener('change', event => {
-      var element = event.currentTarget;
-      viewer.infoPanels.forEach(function(e,i) {
+      viewer.infoPanels.forEach(function(e) {
         e.style.display = 'none';
         e.removeAttribute('foreground')
       });
@@ -432,7 +455,7 @@ export default {
   // @todo Fix this. It's likely a logic error somewhere.
 
 
-  loadViewerObject(rebuild=false) {
+  loadViewerObject() {
     if (typeof this.viewer == 'undefined') {
       this.viewer = this.closestElement('ddhi-viewer'); // can be null
     }
@@ -440,7 +463,7 @@ export default {
 
   injectViewerObject(viewer) {
     this.viewer = viewer;
-    this.viewHelper = new DDHIViewHelper(this.viewer);
+    // this.viewHelper = new DDHIViewHelper(this.viewer);
   },
 
   propagateSelectedEntity(id) {

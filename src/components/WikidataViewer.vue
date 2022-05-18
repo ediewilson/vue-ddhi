@@ -30,7 +30,6 @@ export default {
   // @description Initializer method for this component.
 
   connectedCallback() {
-    var _this = this;
     super.connectedCallback();
   },
 
@@ -60,7 +59,7 @@ export default {
 
   async getWikipediaData() {
 
-    //var requestHeaders = new Headers();
+    // var requestHeaders = new Headers();
     // requestHeaders.append('Origin', window.location.hostname);
 
     const qid = this.getAttribute('selected-entity');
@@ -104,7 +103,7 @@ export default {
 
     // Replace internal links with external ones.
 
-    var wptext = String(this.wikipediaData.text).replace(/href=\"\/wiki/g,'href="https://en.wikipedia.org/wiki').replace(/\<a /g,'<a target="_blank" ');
+    var wptext = String(this.wikipediaData.text).replace(/href="\/wiki/g,'href="https://en.wikipedia.org/wiki').replace(/<a /g,'<a target="_blank" ');
     text.innerHTML = wptext;
 
     infoContainer.appendChild(titleElement);
