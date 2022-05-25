@@ -19,16 +19,19 @@ export default {
             ids: '',
         }
     },
-       watch: {
-    '$store.state.activeIds': function() {
-        this.activeIds = this.$store.getters.getActiveIds
-    },
-     '$store.state.selectedEntity': function() {
-        this.selectedEntity = this.$store.getters.getSelectedEntity
-    },
-    '$store.state.vizType': function() {
-        this.selectedEntity = this.$store.getters.vizType
-    },
+    watch: {
+        '$store.state.activeIds': function() {
+            this.activeIds = this.$store.getters.getActiveIds
+        },
+        '$store.state.selectedEntity': function() {
+            this.selectedEntity = this.$store.getters.getSelectedEntity
+        },
+        '$store.state.vizType': function() {
+            this.selectedEntity = this.$store.getters.vizType
+        },
+  },
+  created() {
+    this.connectedCallback();
   },
     methods: {
 

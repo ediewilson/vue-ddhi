@@ -29,9 +29,6 @@ export default {
          // @method connectedCallback()
   // @description Initializer method for this component.
 
-  connectedCallback() {
-    super.connectedCallback();
-  },
 
   // @method observedAttributes()
   // @description Lists the attributes to monitor. Listed attributes will

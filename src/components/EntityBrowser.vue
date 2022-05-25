@@ -53,14 +53,11 @@ export default {
         this.selectedEntity = this.$store.getters.getEntityFilter
     }
   },
-    methods: {
- connectedCallback() {
-    super.connectedCallback();
+  created() {
     this.initFilters();
     this.initSort();
   },
-
-
+    methods: {
   // @method observedAttributes()
   // @description Lists the attributes to monitor. Listed attributes will
   //   trigger the attributeChangedCallback when their values change.

@@ -72,18 +72,17 @@ export default {
         this.selectedEntity = this.$store.getters.getEntityFilter
     }
   },
-    methods: {
-  // @method connectedCallback()
-  // @description Initializer method for this component.
-  
-  connectedCallback() {
-    super.connectedCallback();
+  created() {
     this.timelineContainer = this.shadowRoot.querySelector('#container');
     this.container2 = this.shadowRoot.querySelector('#container2');
     this.initFilters();
     this.initSort();
     this.filterEntities();
   },
+    methods: {
+  // @method connectedCallback()
+  // @description Initializer method for this component.
+  
   
     
     // @method observedAttributes()

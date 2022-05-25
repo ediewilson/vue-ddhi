@@ -5,23 +5,23 @@
 </template>
 <script>
 import L from 'leaflet';
-import { LMap, LTileLayer, LMarker } from 'vue2-leaflet';
+import { LMap /*, LTileLayer, LMarker */} from 'vue2-leaflet';
 
 export default {
     
     name: 'Map',
     components: {
         LMap,
-        LTileLayer,
-        LMarker,
+        // LTileLayer,
+        // LMarker,
     },
     data () {
         return {
-            mapElement, // Container
-            map, // Leaflet map
-            associatedPlaces,
-            ids,
-            multiInterview,
+            mapElement: {}, // Container
+            map: {}, // Leaflet map
+            associatedPlaces: {},
+            ids: {},
+            multiInterview: {},
         }
     },
        watch: {
@@ -35,15 +35,10 @@ export default {
         this.selectedEntity = this.$store.getters.getForeground
     },
   },
-    methods: {
-connectedCallback() {
-    super.connectedCallback();
+  created() {
     this.mapElement = this.$refs.myMap.mapObject;
-    // console.log('initializing map here', this.multiInterview)
-    // this.multiInterview = await this.getAssociatedEntitiesByType(this,'multiInterview',this.getActiveIdFromAttribute(),'places');
   },
-
-
+    methods: {
   // @method observedAttributes()
   // @description Lists the attributes to monitor. Listed attributes will
   //   trigger the attributeChangedCallback when their values change.
@@ -57,7 +52,7 @@ connectedCallback() {
   // @description HTMLElement listener that detects changes to attributes. If the active
   //   ids are changed it triggers a transcript load process.
 
-  async attributeChangedCallback(attrName, oldVal, newVal) {
+  async attributeChangedCallback(attrName) {
     if(attrName == 'ddhi-active-id') {
       this.multiInterview;
       await this.getAssociatedEntitiesByType(this,'multiInterview',this.getActiveIdFromAttribute());
@@ -89,15 +84,15 @@ connectedCallback() {
 
     // Create icon
 
-    var Icon = L.Icon.extend({
-      options: {
-        iconSize:     [15, 15],
-        shadowSize:   [15, 15],
-        iconAnchor:   [7.5, 7.5],
-        shadowAnchor: [5.25, 5.25],
-        popupAnchor:  [0, -15]
-      }
-    });
+    // var Icon = L.Icon.extend({
+    //   options: {
+    //     iconSize:     [15, 15],
+    //     shadowSize:   [15, 15],
+    //     iconAnchor:   [7.5, 7.5],
+    //     shadowAnchor: [5.25, 5.25],
+    //     popupAnchor:  [0, -15]
+    //   }
+    // });
 
 
     
@@ -112,12 +107,12 @@ connectedCallback() {
     L.control.scale().addTo(component.map);
     // TODO: Nest work
     
-    this.ids.forEach(function(id,i) {
+    this.ids.forEach(function(id) {
       var markerIcon = L.divIcon({className: 'leaflet-marker-icon'});
       var b = '1px ' + component.multiInterview[id].border + ' solid';
       var clr = component.multiInterview[id].color;
       component.associatedPlaces = component.multiInterview[id].places 
-      component.associatedPlaces.forEach(function(e,i){
+      component.associatedPlaces.forEach(function(e){
         if (e.location) {
   
           var marker = L.marker([e.location.lat,e.location.lng], {icon: markerIcon, id: e.id}).addTo(component.map);

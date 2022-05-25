@@ -74,6 +74,9 @@ const store = new Vuex.Store({
     getForeground: state => {
       return state.foreground;
     },
+    getARIuri: state => {
+      return state.apiURI;
+    }
   }
 })
 

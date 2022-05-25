@@ -2,11 +2,11 @@
     <div>
         <div id='viewer'>
         <section id='menu' propagate>
-        <div class='switch-field'>
-        <input type="radio" id="single" name="viz_type" value="single" checked onclick="this.getRootNode().host.updateVizType('single')" >
-        <label for="single">Single</label>
-        <input type="radio" id="multi" name="viz_type" value="multi" onclick="this.getRootNode().host.updateVizType('multi')" >
-        <label for="multi">Multi</label>
+        <div ref='switch' class='switch-field'>
+          <input type="radio" id="single" name="viz_type" value="single" checked onclick="this.getRootNode().host.updateVizType('single')" >
+          <label for="single">Single</label>
+          <input type="radio" id="multi" name="viz_type" value="multi" onclick="this.getRootNode().host.updateVizType('multi')" >
+          <label for="multi">Multi</label>
         </div>
           <header>Select an interview:</header>
           <ul id='interview-menu'>
@@ -15,9 +15,20 @@
         </section>
         <section id='stage'>
           <header>
-            <div id='title'></div>
+            <div id='title' ref='title'>
+              <div>
+                <h2>DDHI Data Visualization Viewer</h2>
+                <h3>{{ this.title }}</h3>
+                <span class='metadata'>
+                  <span class='metadata-field'>
+                    <span class='label'>ID</span>
+                    <span class='value'></span>
+                  </span>
+                </span>
+              </div>
+            </div>
             <div id='vizcontrols'>
-                <select>
+                <select ref='vizcontrols'>
                     <option value='entity-browser'>DDHI Entity Browser</option>
                     <option value='map-tool'>Map tool</option>
                     <option value='timeline-tool'>Timeline tool</option>
@@ -54,7 +65,7 @@
         <section id='information-viewer'>
           <header>
             <div id='ivcontrols'>
-                <select>
+                <select ref='ivcontrols'>
                 <option value='transcript'>DDHI Transcript Viewer</option>
                 <option value='wiki-viewer' >Wikipedia Viewer</option>
                 </select>
@@ -100,10 +111,11 @@ export default {
             selectedEntity: '',
             activeIds: '',
             infoPanelType: 'transcript',
+            availableIds: [],
+            title: '',
+            currId: 0,
+            apiURI: '',
         }
-    },
-    created () {
-
     },
     watch: {
     '$store.state.activeIds': function() {
@@ -113,13 +125,16 @@ export default {
         this.selectedEntity = this.$store.getters.getSelectedEntity
     }
   },
+  created () {
+    this.connectedCallback()
+  },
     methods: {
         changeViz(type) {
             this.selectedViz = type;
         },
 
   async connectedCallback() {
-    super.connectedCallback();
+   
 
     // this.viewer is used in the parent Data componentÄ™s propagation system and
     // is derived from a selection query of an elementÄ™s parents. This will return
@@ -134,22 +149,22 @@ export default {
 
     // Assign viewer header
 
-    this.titleContainer = this.shadowRoot.getElementById('title');
+    this.titleContainer = this.$refs.title;
 
     // Set up panel selection mechanisms (options set in registerUserComponents)
 
-    this.vizcontrols = this.shadowRoot.getElementById('vizcontrols').querySelector('select');
+    this.vizcontrols = this.$refs.vizcontrols;
 
-    this.ivcontrols = this.shadowRoot.getElementById('ivcontrols').querySelector('select');
+    this.ivcontrols = this.$refs.ivcontrols;
 
 
     // Register User Visualizations and Info Panels
 
-    await this.registerUserComponents();
+    // await this.registerUserComponents();
 
     // Set up controls
 
-    this.initializePanelSwitching();
+   // this.initializePanelSwitching();
 
     // Populate transcripts from REST api
 
@@ -169,7 +184,7 @@ export default {
         var element = event.currentTarget;
         var transcriptID = element.getAttribute('data-id');
 
-        var radio = this.shadowRoot.querySelector('input[name="viz_type"]:checked')
+        var radio = this.$refs.switch.querySelector('input[name="viz_t`ype"]:checked')
         if(radio.value == 'single') {
           menu.querySelectorAll('.active').forEach(function(e){
             e.classList.remove('active');
@@ -275,7 +290,8 @@ export default {
 // TODO: Add mult interview
   async getTEI(id,format='json') {
     var oneId = id.split(",")
-
+    this.apiURI = this.$store.getters.getAPIuri;
+    
     const response = await fetch(this.apiURI + '/items/' + oneId[0] + '/tei?_format=' + format, {mode: 'cors'});
     const result = await response.json();
 
@@ -408,40 +424,8 @@ export default {
 
   render() {
     var item = this.getItemData();
-
-    // Create Header
-
-    var header = document.createElement('div');
-
-    var title = document.createElement('h2')
-    title.appendChild(document.createTextNode('DDHI Data Visualization Viewer'));
-
-    var heading = document.createElement('h3')
-    heading.appendChild(document.createTextNode(item.title.replace('Transcript of an Interview with a','').replace('Transcript of an Interview with',''))); // @todo: remove this ugly duct tape
-
-
-    var idLabel = document.createElement('span');
-    idLabel.classList.add('label');
-    idLabel.appendChild(document.createTextNode('ID'));
-
-    var idValue = document.createElement('span');
-    idValue.classList.add('value');
-    idValue.appendChild(document.createTextNode(item.id))
-
-    var idWrapper = document.createElement('span');
-    idWrapper.classList.add('metadata-field');
-    idWrapper.appendChild(idLabel);
-    idWrapper.appendChild(idValue);
-
-    var metadata = document.createElement('span');
-    metadata.classList.add('metadata');
-    metadata.appendChild(idWrapper);
-
-    header.appendChild(title);
-    header.appendChild(heading);
-    header.appendChild(metadata);
-
-    this.renderValue(this.titleContainer,header.outerHTML);
+    this.title = item.title.replace('Transcript of an Interview with a','').replace('Transcript of an Interview with','');
+    this.currId = item.id
   }
 
     },
@@ -538,11 +522,29 @@ export default {
     // Propagate to the viewer itself
 
     this.removeAttribute(attr);
-  }
+  },
 
   // @method getTranscripts()
   // @description Retrieves transcripts from the repository.
+  async getTranscripts() {
+    return this.getAPIResource('collections/transcripts','availableIds');
+  },
 
+  async getAPIResource(resource,prop,format='json') {
+
+    const response = await fetch(this.apiURI + '/' + resource + '?_format=' + format, {mode: 'cors'});
+    const result = await response.json();
+
+    if (!response.ok) {
+      const message = `An error has occured: ${response.status}`;
+      throw new Error(message);
+    }
+
+    this[prop] = result;
+
+    return response;
+
+  }
 
 }
 </script>
