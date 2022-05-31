@@ -1,16 +1,16 @@
 <template>
     <div>
-        <div id='viewer'>
+        <div v-if="dataReady" id='viewer'>
         <section id='menu' propagate>
         <div ref='switch' class='switch-field'>
-          <input type="radio" id="single" name="viz_type" value="single" checked onclick="this.getRootNode().host.updateVizType('single')" >
+          <input type="radio" id="single" name="viz_type" value="single" checked @click="updateVizType('single')" >
           <label for="single">Single</label>
-          <input type="radio" id="multi" name="viz_type" value="multi" onclick="this.getRootNode().host.updateVizType('multi')" >
+          <input type="radio" id="multi" name="viz_type" value="multi" @click="updateVizType('multi')" >
           <label for="multi">Multi</label>
         </div>
           <header>Select an interview:</header>
-          <ul id='interview-menu'>
-            <li v-for="(item, key, index) in availableIds" :key="key"> {{this.availableIds[index]}} </li>
+          <ul ref='interview-menu' id='interview-menu'>
+            <MenuElement v-for="item in interviewLinks" :key="item.id" :id='item.id' :title='item.title' :activeIds="activeIds"/>
           </ul>
         </section>
         <section id='stage'>
@@ -28,7 +28,7 @@
               </div>
             </div>
             <div id='vizcontrols'>
-                <select ref='vizcontrols'>
+                <select @change="changeViz($event)" ref='vizcontrols'>
                     <option value='entity-browser'>DDHI Entity Browser</option>
                     <option value='map-tool'>Map tool</option>
                     <option value='timeline-tool'>Timeline tool</option>
@@ -39,7 +39,7 @@
             <slot name='visualizations'>
                 <EntityBrowser v-if="selectedViz == 'entity-browser'"/>
                 <Map v-if="selectedViz == 'map-tool'"/>
-                <Timeline v-if="selectedViz == 'timeline-tool'" />
+                <!-- <Timeline v-if="selectedViz == 'timeline-tool'" /> -->
             </slot>
           </div>
           <footer>
@@ -74,7 +74,7 @@
           </header>
           <slot id='infopanels' name='infopanels'>
               <Transcript v-if="infoPanelType == 'transcript'"/>
-              <WikidataViewer v-if="selectedViz == 'wiki-viewer'" />
+              <!-- <WikidataViewer v-if="infoPanelType == 'wiki-viewer'" /> -->
           </slot>
         </section>
     </div>
@@ -84,21 +84,25 @@
 
 import EntityBrowser from './EntityBrowser.vue'
 import Map from './Map.vue'
-import Timeline from './Timeline.vue'
-import WikidataViewer from './WikidataViewer.vue'
+// import Timeline from './Timeline.vue'
+// import WikidataViewer from './WikidataViewer.vue'
 import Transcript from './Transcript.vue'
+import MenuElement from './MenuElement.vue'
+
 
 export default {
     name: 'Viewer',
     components: {
         EntityBrowser,
         Map,
-        Timeline,
-        WikidataViewer,
+        // Timeline,
+        // WikidataViewer,
         Transcript,
+        MenuElement,
     },
     data () {
         return {
+          dataReady: false,
             visContainer: '',
             infoContainer: '',
             visualizations: [],
@@ -108,46 +112,130 @@ export default {
             ivcontrols: '', // Selection mechanism for information view
             vizMode: 'single',
             selectedViz: 'entity-browser',
-            selectedEntity: '',
-            activeIds: '',
+            selectedEntity: null,
+            activeIds: ['dvp_033'],
             infoPanelType: 'transcript',
             availableIds: [],
             title: '',
             currId: 0,
-            apiURI: '',
+            interviewLinks: [],
+
+            repositoryURI: 'https://ddhi-repo-stage.dartmouth.edu', // Set from the ddhi-viewer repository attribute
+            apiURI: 'https://ddhi-repo-stage.dartmouth.edu/ddhi-api', // Derived from above
+            cdnAssetPath: 'modules/custom/ddhi_rest/assets/ddhi-viewer', // Derived from above
+            viewer: '', // The active viewer
+            viewHelper: '', // An instance of the DDHI View Plugin
+            loading: false,
+            items: {},  // Data keyed by ID.
+            tempResult: {}, // Holding property for asynchronous data retrieval.
+            supportedEntityTypes: ['events','persons','places','organizations', 'dates'], // Currently supported entities types.
+            mentionedEntities: {}, // The list of entities mentioned in a transcript.
+            wikidataAPIUrl: 'https://www.wikidata.org/w/api.php?action=wbgetentities&format=json&languages=en&sitefilter=enwiki',
+            eventData: {},
+            eventDateIndex: '', // Indexes event dates by id.
+            multiInterview: {},
+            // observed attribute state 
+            entitySort: {},
+            entityFilter: 'all',
+            vizType: 'single',
+            foreground: {},
         }
     },
     watch: {
-    '$store.state.activeIds': function() {
+    '$store.state.activeIds': async function() {
         this.activeIds = this.$store.getters.getActiveIds
+        await this.getAssociatedEntitiesByType();
+
     },
      '$store.state.selectedEntity': function() {
         this.selectedEntity = this.$store.getters.getSelectedEntity
+    },
+    'dataReady': async function() {
+        await this.connectedCallback();
+        await this.getAssociatedEntitiesByType();
+    },
+    'availableIds': function() {
+      for(var i=0;i<this.availableIds.length;i++) {
+        var id = this.availableIds[i].id
+        var title = this.availableIds[i].title.replace('Transcript of an Interview with a', 'Narrator:').replace('Transcript of an Interview with', 'Narrator:')
+        this.interviewLinks.push({id: id, title: title})
+        
+      }
+    },
+    'tempResult': function() {
+      if(this.tempResult !== null && !Object.prototype.hasOwnProperty.call(this.multiInterview.hasOwnProperty, this.tempResult.id)) {
+        const id = this.tempResult.id
+        var color = Math.floor(Math.random()*16777215).toString(16);
+        color = '#' + color;
+        var border = this.shadeColor(color)
+        
+        this.multiInterview[id] = {
+          "dates": [],
+          "events": [],
+          "organizations":  [],
+          "persons": [],
+          "places": [],
+          "tei_uri": "",
+          "title": "",
+          "transcript": "",
+          "uri": "",
+          'color': "",
+          'border': ''
+        } 
+        
+        for(const key in this.multiInterview[id]) {
+          this.multiInterview[id][key] = this.tempResult[key]
+        }
+        
+        this.multiInterview[id].color = color;
+        this.multiInterview[id].border = border;
+        console.log('multi after for loop', this.multiInterview)
+        this.$store.commit('setMultiInterview', this.multiInterview)
+      }
+    },
+  },
+  async mounted () {
+    await this.getAPIResource('collections/transcripts','availableIds');
+   // this.dataReady = true;
+  },
+  methods: {
+    async getAPIResource(resource,prop,format='json') {
+      this.$axios.get(this.apiURI + '/' + resource + '?_format=' + format, {mode: 'cors'}).then((result) => {
+        console.log(result.data)
+        this[prop] = result.data;
+        console.log('props in call', prop, this[prop])
+        this.dataReady = true;
+       // this.connectedCallback();
+        // this.getItemDataById();
+
+      })
+      //this.dataReady = false;
+    },
+    async getAssociatedEntitiesByType(type='people') {
+
+    var res = []
+    if (this.activeIds !== null) {
+      
+      let ids = this.activeIds
+      await Promise.all(ids.map(async (id) => {
+        this.tempResult = null;
+        var response = await this.getAPIResource("items/" + id + "/" + type, 'tempResult');
+        res.push(response)
+      }));
+    
+    console.log('multiinterview', this.multiInterview)
+    return res;
+  
     }
   },
-  created () {
-    this.connectedCallback()
-  },
-    methods: {
-        changeViz(type) {
-            this.selectedViz = type;
-        },
 
-  async connectedCallback() {
-   
+    changeViz(event) {
+        this.selectedViz = event.target.value;
+        console.log('changed viz type')
+    },
 
-    // this.viewer is used in the parent Data componentÄ™s propagation system and
-    // is derived from a selection query of an elementÄ™s parents. This will return
-    // null for the viewer component itself, so it must be explicitly set.
-
-    this.viewer = this;
-
-    // localized version for subroutines.
-
-    // var viewer = this;
-
-
-    // Assign viewer header
+    async connectedCallback() {
+       if(this.interviewLinks == []) {
 
     this.titleContainer = this.$refs.title;
 
@@ -158,110 +246,60 @@ export default {
     this.ivcontrols = this.$refs.ivcontrols;
 
 
-    // Register User Visualizations and Info Panels
-
-    // await this.registerUserComponents();
-
-    // Set up controls
-
-   // this.initializePanelSwitching();
-
     // Populate transcripts from REST api
 
-    await this.getTranscripts();
+    //await this.getAPIResource('collections/transcripts','availableIds');
 
 
     // Set Active Menu
-
-    var menu = this.shadowRoot.getElementById('interview-menu');
-
+    console.log('availibleids in callback', this.availableIds)
+    // var menu = this.$refs.interviewMenu;
+    console.log('availible ids', this.availableIds)
     for(var i=0;i<this.availableIds.length;i++) {
-      var listEl = document.createElement('li');
-      var aEl = document.createElement('a');
-      aEl.setAttribute('data-id',this.availableIds[i].id);
-      aEl.appendChild(document.createTextNode(this.availableIds[i].title.replace('Transcript of an Interview with a', 'Narrator:').replace('Transcript of an Interview with', 'Narrator:')));
-      aEl.addEventListener('click', event => {
-        var element = event.currentTarget;
-        var transcriptID = element.getAttribute('data-id');
-
-        var radio = this.$refs.switch.querySelector('input[name="viz_t`ype"]:checked')
-        if(radio.value == 'single') {
-          menu.querySelectorAll('.active').forEach(function(e){
-            e.classList.remove('active');
-          });
-
-          element.classList.add('active');
-          this.deactivateIds();
-          this.activateId(transcriptID);
-        }
-        /*
-         Logic for multiple active transcripts.
-        */      
-        else {
-          if (element.classList.contains('active')) {
-              
-            this.deactivateIds(transcriptID);
-            element.classList.remove('active');
-          } else {
-            this.activateId(transcriptID);
-            element.classList.add('active');
-          }
-        }
-      });
-
-      listEl.appendChild(aEl);
-      menu.appendChild(listEl);
+      var id = this.availableIds[i].id
+      var title = this.availableIds[i].title.replace('Transcript of an Interview with a', 'Narrator:').replace('Transcript of an Interview with', 'Narrator:')
+      this.interviewLinks.push({id: id, title: title})
+      
     }
-
+    console.log('interviewLinks', this.interviewLinks)
+       }
     // Fire click event on first menu item
 
-    var evObj = document.createEvent('Events');
-    evObj.initEvent('click', true, false);
-    menu.querySelector('a').dispatchEvent(evObj);
+    // var evObj = document.createEvent('Events');
+    // evObj.initEvent('click', true, false);
+    // menu.querySelector('a').dispatchEvent(evObj);
 
   },
 
-  // @method activateId()
-  // @description Adds a transcript to the active list and triggers propagation.
+   shadeColor(color) {
+      var percent = -25;
+      var R = parseInt(color.substring(1,3),16);
+      var G = parseInt(color.substring(3,5),16);
+      var B = parseInt(color.substring(5,7),16);
 
-  activateId(id) {
-    const index = this.activeIds.indexOf(id);
-    if (index == -1) {
-      this.activeIds.push(id);
-      this.$store.commit('setActiveIds', {ids: this.activeIds})
-    }
-    this.propagateActiveIds();
+      R = parseInt(R * (100 + percent) / 100);
+      G = parseInt(G * (100 + percent) / 100);
+      B = parseInt(B * (100 + percent) / 100);
+
+      R = (R<255)?R:255;  
+      G = (G<255)?G:255;  
+      B = (B<255)?B:255;  
+
+      var RR = ((R.toString(16).length==1)?"0"+R.toString(16):R.toString(16));
+      var GG = ((G.toString(16).length==1)?"0"+G.toString(16):G.toString(16));
+      var BB = ((B.toString(16).length==1)?"0"+B.toString(16):B.toString(16));
+
+      return "#"+RR+GG+BB;
   },
 
-  // @method deactivateIds()
-  // @description Remove all active IDs. Will not trigger propagation unless an id is supplied.
-  // @param id  Deactivates the supplied id and triggers propagation
-
-  deactivateIds(id=null) {
-
-    if (id==null) {
-      this.activeIds = [];
-      this.$store.commit('setActiveIds', {ids: this.activeIds})
-    } else {
-      const index = this.activeIds.indexOf(id);
-      if (index > -1) {
-        this.activeIds.splice(index, 1);
-        this.$store.commit('setActiveIds', {ids: this.activeIds})
-      }
-      this.propagateActiveIds();
-    }
-  },
+  
 
   updateVizType(type) {
     this.vizMode = type;
-    if(this.vizMode == 'single') {
-      var first = this.activeIds[0]
-      var active = this.shadowRoot.querySelector('a[data-id="'+first+'"]')
-      active.click();
-      this.activateId(first);
-      this.$store.commit('getActiveIds', {ids: [first]})
+    this.$store.commit('setVizType', type)
+    if(type == 'single') {
+      this.$store.commit('setActiveIds', [this.activeIds[0]])
     }
-    this.propagateAttributes('viz-type', type);
   },
 
 
@@ -271,6 +309,27 @@ export default {
   // @description Lists the attributes to monitor. Listed attributes will
   //   trigger the attributeChangedCallback when their values change.
   // @return An array of monitored attributes.
+  async getItemDataById() {
+
+    var res = []
+    console.log('activeids in id data', this.activeIds)
+    if (this.activeIds !== null) {
+     // console.log('active id in get item data', ids)
+      // TODO: Getting multi interview data
+      await Promise.all(this.activeIds.map(async (id) => {
+        this.tempResult = null;
+        var response = await this.getAPIResource('items/' + id,'tempResult');
+        this.multiInterview[id] = this.tempResult;
+        this.tempResult = null;
+        //console.log('item response', response)
+        res.push(response)
+      }));
+    
+    //console.log('res list: ', res)
+    // TODO: return all
+    return res;
+    }
+  },
 
   async attributeChangedCallback(attrName) {
     if(attrName == 'ddhi-active-id') {
@@ -312,96 +371,6 @@ export default {
   //   setTimeout waits for the DOM to be rendered. A promise is
   //   then created to ensure that object properties were set.
 
-  async registerUserComponents() {
-
-    var viewer = this;
-
-    var componentsReady = new Promise(function(resolve) {
-
-      setTimeout(function() {
-        [... viewer.children].forEach(function(e){
-          if (e.getAttribute('slot')=='visualizations') {
-            viewer.visContainer = e;
-            viewer.visualizations = [... e.children];
-
-            viewer.visualizations.forEach(function(e,i) {
-              var option = document.createElement('option')
-              option.setAttribute('value',i);
-              option.appendChild(document.createTextNode(e.getAttribute('data-label')));
-              viewer.vizcontrols.appendChild(option);
-            });
-
-          }
-
-          if (e.getAttribute('slot')=='infopanels') {
-            viewer.infoContainer = e;
-            viewer.infoPanels = [... e.children];
-
-            viewer.infoPanels.forEach(function(e,i) {
-              var option = document.createElement('option')
-              option.setAttribute('value',i);
-              option.appendChild(document.createTextNode(e.getAttribute('data-label')));
-              viewer.ivcontrols.appendChild(option);
-            });
-          }
-
-          resolve();
-        });
-      }, 100);
-
-    });
-
-    await componentsReady;
-
-    //await infoPanels;
-
-  },
-
-  initializePanelSwitching() {
-    var viewer = this;
-
-
-    viewer.visualizations.forEach(function(e,i) {
-      // set panel height
-
-      e.style.height = '100%';
-
-      // hide panels;
-      if (i > 0) {
-        e.style.display = 'none';
-      } else {
-        e.style.display = 'block';
-      }
-    });
-
-
-    // Add change listeners that trigger switching
-
-
-    viewer.vizcontrols.addEventListener('change', event => {
-      viewer.visualizations.forEach(function(e) {
-        e.style.display = 'none';
-        e.removeAttribute('foreground')
-      });
-
-      viewer.visualizations[event.target.value].style.display = 'block';
-      viewer.visualizations[event.target.value].setAttribute('foreground','')
-
-    });
-
-    viewer.ivcontrols.addEventListener('change', event => {
-      viewer.infoPanels.forEach(function(e) {
-        e.style.display = 'none';
-        e.removeAttribute('foreground')
-      });
-
-      viewer.infoPanels[event.target.value].style.display = 'block';
-      viewer.infoPanels[event.target.value].setAttribute('foreground','');
-    });
-
-
-  },
-
 
   // @method propagateActiveIds()
   // @description Propagates the current active transcripts to the visualizations in
@@ -426,7 +395,7 @@ export default {
     var item = this.getItemData();
     this.title = item.title.replace('Transcript of an Interview with a','').replace('Transcript of an Interview with','');
     this.currId = item.id
-  }
+  },
 
     },
 
@@ -438,17 +407,6 @@ export default {
   //  and skip tracing it through the DOM.
   // @todo Fix this. It's likely a logic error somewhere.
 
-
-  loadViewerObject() {
-    if (typeof this.viewer == 'undefined') {
-      this.viewer = this.closestElement('ddhi-viewer'); // can be null
-    }
-  },
-
-  injectViewerObject(viewer) {
-    this.viewer = viewer;
-    // this.viewHelper = new DDHIViewHelper(this.viewer);
-  },
 
   propagateSelectedEntity(id) {
     this.propagateAttributes('selected-entity',id);
@@ -529,23 +487,6 @@ export default {
   async getTranscripts() {
     return this.getAPIResource('collections/transcripts','availableIds');
   },
-
-  async getAPIResource(resource,prop,format='json') {
-
-    const response = await fetch(this.apiURI + '/' + resource + '?_format=' + format, {mode: 'cors'});
-    const result = await response.json();
-
-    if (!response.ok) {
-      const message = `An error has occured: ${response.status}`;
-      throw new Error(message);
-    }
-
-    this[prop] = result;
-
-    return response;
-
-  }
-
 }
 </script>
 <style scoped>
@@ -784,27 +725,6 @@ export default {
           padding: 0;
           margin: 0;
           font-size: 0.95rem;
-        }
-
-        #interview-menu li {
-          list-style-type: none;
-          font-size: 0.75rem;
-          font-weight: 400;
-          margin-left: 0;
-          padding-left: 0;
-          margin-bottom: 0.75rem;
-        }
-
-        #interview-menu li a.active {
-          font-weight: 800;
-        }
-
-        #interview-menu li:hover {
-          text-decoration: underline;
-        }
-
-        #interview-menu a {
-          cursor: pointer;
         }
 
         metadata-field {

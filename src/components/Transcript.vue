@@ -1,8 +1,8 @@
 <template>
     <div>
-         <div class='transcript-menu disabled'></div>
+         <div class='transcript-menu' :class="{ disabled: vizType == 'single' }"></div>
       <div class='controls'>
-        <a class='previous disabled'>Previous Reference</a> <a class='next disabled'>Next Reference</a>
+        <a ref='previous' :class="{ disabled: selectedEntity != null }" class='previous'>Previous Reference</a> <a ref='next' class='next' :class="{ disabled: selectedEntity != null }" @click='previousClicked' >Next Reference</a>
       </div>
       <div class='info'></div>
     </div>
@@ -12,46 +12,49 @@ export default {
     name: 'Transcript',
     data() {
         return {
-            selectedEntity: '',
+            selectedEntity: null,
             selectedEntityElements: [],
-            previousSelectedEntity: '', // Used to detect a change in selected entities.
+            previousSelectedEntity: null, // Used to detect a change in selected entities.
             multiInterview: {},
             ids: '',
+            vizType: 'single'
         }
     },
     watch: {
         '$store.state.activeIds': function() {
             this.activeIds = this.$store.getters.getActiveIds
+            if(this.vizType == 'multi') {
+              this.updateTabs()
+            }
         },
         '$store.state.selectedEntity': function() {
             this.selectedEntity = this.$store.getters.getSelectedEntity
         },
         '$store.state.vizType': function() {
-            this.selectedEntity = this.$store.getters.vizType
+            this.vizType = this.$store.getters.vizType
+            if(this.vizType == 'multi') {
+              this.updateTabs()
+            }
         },
-  },
-  created() {
-    this.connectedCallback();
-  },
+    },
+  // created() {
+  //   this.connectedCallback();
+  // },
     methods: {
+      previousClicked() {
+        if (this.selectedEntity != null) {
+            this.decrementSelectedEntityIndex();
+            this.focusSelectedEntity();
+          }
+      },
 
-  connectedCallback() {
-    var component = this;
+      nextClicked() {
+        if (this.selectedEntity != null) {
+            this.incrementSelectedEntityIndex();
+            this.focusSelectedEntity();
+          }
+      },
 
-    super.connectedCallback();
-    this.shadowRoot.querySelector('.previous').addEventListener('click', () => {
-      if (this.selectedEntity != null) {
-        component.decrementSelectedEntityIndex();
-        component.focusSelectedEntity();
-      }
-    });
-    this.shadowRoot.querySelector('.next').addEventListener('click', () => {
-      if (this.selectedEntity != null) {
-        component.incrementSelectedEntityIndex();
-        component.focusSelectedEntity();
-      }
-    });
-  },
 
   // @method observedAttributes()
   // @description Lists the attributes to monitor. Listed attributes will
@@ -69,51 +72,22 @@ export default {
   async attributeChangedCallback(attrName) {
     if(attrName == 'ddhi-active-id') {
       await this.getItemDataById();
-      this.multiInterview;
       await this.getAssociatedEntitiesByType(this,'multiInterview',this.getActiveIdFromAttribute());
       this.ids = this.getActiveIdFromAttribute().split(',')
       this.render();
       this.ids = this.getActiveIdFromAttribute().split(',')
-      if(this.getAttribute('viz-type') == 'multi') {
-        this.updateTabs()
-      }
     }
 
     if(attrName == 'selected-entity') {
       this.selectedEntity = this.hasAttribute('selected-entity') ? this.getAttribute('selected-entity') : null;
       if (this.selectedEntity != null) {
 
-        // Enable next and previous controls
-
-        this.shadowRoot.querySelector('.previous').classList.remove('disabled');
-        this.shadowRoot.querySelector('.next').classList.remove('disabled');
-
         this.getSelectedEntityElements();
         this.highlightSelectedEntity();
         //this.setSelectedEntityIndex();
         this.focusSelectedEntity();
-      } else {
-
-        // disable next and previous controls
-
-        this.shadowRoot.querySelector('.previous').classList.remove('disabled');
-        this.shadowRoot.querySelector('.next').classList.remove('disabled');
-      }
+      } 
     }
-
-    if(attrName == 'viz-type') {
-      console.log('Viz type changed in transcript')
-    
-      console.log(this.ids, this.getActiveIdFromAttribute())
-      if(this.getAttribute('viz-type') == 'multi') {
-        this.updateTabs()
-        this.shadowRoot.querySelector('.transcript-menu').classList.remove('disabled');
-      }
-      if(this.getAttribute('viz-type') == 'single') {
-        this.shadowRoot.querySelector('.transcript-menu').classList.add('disabled');
-      }
-    }
-
   },
 
   setSelectedEntityIndex() {

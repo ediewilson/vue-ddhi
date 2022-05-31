@@ -1,10 +1,15 @@
 import Vue from 'vue'
 import App from './App.vue'
 import Vuex from 'vuex'
+import axios from 'axios'
+import VueAxios from 'vue-axios'
+
 import 'leaflet/dist/leaflet.css';
 
 Vue.config.productionTip = false
 Vue.use(Vuex);
+Vue.use(VueAxios, axios)
+Vue.prototype.$axios = axios;
 
 const store = new Vuex.Store({
   state: {
@@ -26,7 +31,7 @@ const store = new Vuex.Store({
     multiInterview: {},
     // observed attribute state 
     selectedEntity: {},
-    entitySort: {},
+    entitySort: 'appearance',
     entityFilter: 'all',
     vizType: 'single',
     foreground: {},
@@ -39,6 +44,7 @@ const store = new Vuex.Store({
       console.log("State in setSelectedEntity", state.setSelectedEntity);
     },
     setActiveIds (state, ids) {
+      console.log('ids in store = ', ids)
       state.activeIds = ids;
     },
     setEntitySort (state, sort) {
@@ -52,6 +58,10 @@ const store = new Vuex.Store({
     },
     setForeground (state, fg) {
       state.foreground = fg;
+    },
+    setMultiInterview (state, m) {
+      console.log('in setter')
+      state.multiInterview = m;
     }
   },
   getters: {
@@ -76,6 +86,9 @@ const store = new Vuex.Store({
     },
     getARIuri: state => {
       return state.apiURI;
+    },
+    getMultiInterview: state => {
+      return state.multiInterview;
     }
   }
 })

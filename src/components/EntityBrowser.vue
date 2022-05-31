@@ -2,8 +2,8 @@
     <div class='visualization' data-name='DDHI Entity Browser'>
         <div class='controls'>
           <div id='filter-entities'>
-            <select>
-              <option value='all'>All entity types</option>
+            <select @change="filterChange($event)">
+              <option value='all' selected>All entity types</option>
               <option value='event'>Event</option>
               <option value='person'>Persons</option>
               <option value='place'>Places</option>
@@ -13,7 +13,7 @@
             <div class='formlabel'>Display type of entity</div>
           </div>
           <div id='sort-entities'>
-            <select>
+            <select @change="sortChange($event)">
               <option value='data-appearance'>Appearance</option>
               <option value='data-mention'>Frequency</option>
               <option value='data-title'>Alphabetically</option>
@@ -22,7 +22,7 @@
           </div>
         </div>
         <!--<div class='labels'><span class='devnote'>Entity descriptions to come.</span></div>-->
-        <div class='entity-grid'>
+        <div ref='entity-grid' class='entity-grid'>
           <EntityCard v-for="item in entityGrid" :item="item" v-bind:key="item.id" />
         </div>
       </div>
@@ -37,6 +37,10 @@ export default {
     data() {
         return {
           entityGrid: [],
+          filter: 'all',
+          sort: 'appearance',
+          sortIndex: {},
+          multiInterview: {},
         }
     },
      watch: {
@@ -49,14 +53,18 @@ export default {
     '$store.state.entitySort': function() {
         this.selectedEntity = this.$store.getters.getEntitySort
     },
-    '$store.state.entityFilter': function() {
-        this.selectedEntity = this.$store.getters.getEntityFilter
-    }
+    // '$store.state.entityFilter': function() {
+    //     this.filter = this.$store.getters.getEntityFilter
+    // }
+    '$store.state.multiInterview': function() {
+        this.multiInterview = this.$store.getters.getMultiInterview
+        console.log('New multi interview in entity browser', this.multiInterview)
+    },
   },
-  created() {
-    this.initFilters();
-    this.initSort();
-  },
+  // created() {
+  //   this.initFilters();
+  //   this.initSort();
+  // },
     methods: {
   // @method observedAttributes()
   // @description Lists the attributes to monitor. Listed attributes will
@@ -78,7 +86,18 @@ export default {
    *  - IndexEntities() also adds entity ids to sorted indices for retrieval during rendering
    *  - The render() process checks the value of the sort and filter controls, retrieves the values from the selected sort index, and renders.
    */
+  filterChange(event) {
+    this.filter = event.target.value;
+    this.$store.commit('setEntityFilter', {filter: this.filter})
+     this.filterEntities();
+  },
+  sortChange(event) {
+    this.sort = event.target.value;
+    this.$store.commit('setEntityFilter', {sort: this.sort})
+    this.render()
+  },
 
+  // TODO TODAY: need to call these when we get a new active id but only on the specific new id 
   async attributeChangedCallback(attrName) {
     if(attrName == 'ddhi-active-id') {
       await this.getItemDataById();
@@ -87,49 +106,16 @@ export default {
       this.indexEntities();
       this.render();
     }
-
-    if (attrName == 'entity-filter') {
-      this.filterEntities();
-    }
-
-    if (attrName == 'entity-sort') {
-      this.render();
-    }
   },
 
 
-  initFilters() {
-    const filterElement = this.shadowRoot.querySelector('#filter-entities select');
-    var _this = this;
 
-    _this.setAttribute('entity-filter','all');
-
-    filterElement.addEventListener('change', event => {
-     // var element = event.currentTarget;
-      _this.setAttribute('entity-filter',event.target.value);
-    });
-
-  },
-
-  initSort() {
-    const sortElement = this.shadowRoot.querySelector('#sort-entities select');
-    var _this = this;
-
-    _this.setAttribute('entity-sort','appearance');
-
-    sortElement.addEventListener('change', event => {
-     // var element = event.currentTarget;
-      _this.setAttribute('entity-sort',event.target.value);
-    });
-
-  },
-
+ 
 
   filterEntities() {
-    const grid = this.shadowRoot.querySelector('.entity-grid');
+    const grid = this.$refs.entityGrid;
+    
     const entities = this.shadowRoot.querySelectorAll('entity-card');
-
-    const filterValue = this.getAttribute('entity-filter');
 
     grid.style.opacity = 0;
 
@@ -138,11 +124,11 @@ export default {
 
     entities.forEach(function(entity) {
 
-      if (filterValue == 'all') {
+      if (this.filter == 'all') {
         entity.style.display = 'block';
       } else {
 
-        if (entity.getAttribute('data-entity-type') == filterValue) {
+        if (entity.getAttribute('data-entity-type') == this.filter) {
           entity.style.display = 'block';
         } else {
           entity.style.display = 'none';
@@ -155,11 +141,10 @@ export default {
 
   render() {
 
-    const grid = this.shadowRoot.querySelector('.entity-grid');
-    // const entities = this.shadowRoot.querySelectorAll('entity-card');
-    const sortValue = this.getAttribute('entity-sort');
+    const grid = this.$refs.entityGrid;
+    //const entities = this.shadowRoot.querySelectorAll('entity-card');
 
-    if (typeof this.sortIndex[sortValue] == 'undefined') {
+    if (typeof this.sortIndex[this.sort] == 'undefined') {
       return;
     }
 
@@ -172,8 +157,8 @@ export default {
       grid.removeChild(grid.firstChild);
     }
 
-    for (var i=0;i < this.sortIndex[sortValue].length;i++) {
-      var id = this.sortIndex[sortValue][i].id;
+    for (var i=0;i < this.sortIndex[this.sort].length;i++) {
+      var id = this.sortIndex[this.sort][i].id;
       grid.appendChild(this.entityCardIndex[id]);
     }
 
@@ -188,7 +173,9 @@ export default {
     this.resetIndices();
     var _this = this;
     // var item = this.getItemData();
-    var entityGrid = this.shadowRoot.querySelector('.entity-grid');
+    var item = this.getItemData();
+    this.dateEntities = item.dates;
+    const entityGrid = this.$refs.entityGrid;
 
     entityGrid.textContent = '';
 
