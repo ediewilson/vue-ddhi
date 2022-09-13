@@ -5,14 +5,14 @@
           <span><slot name='iconlabel'></slot></span>
         </div>
         <div class='entity-label'>
-          <slot name='label'></slot>
+          <slot name='label'>{{ this.item.label }}</slot>
         </div>
         <div class='entity-dates'>
         <slot name='date-range'></slot>
       </div>
       </a>
       <div class='entity-contents'>
-        <slot name='contents'></slot>
+        <slot name='contents'>{{ this.item['data-mention'] }}</slot>
       </div>
     </div>
 </template>
@@ -28,12 +28,15 @@ export default {
     props: {
       item: Object,
     },
+    mounted() {
+      console.log(this.item)
+    },
     methods: {
         async connectedCallback() {
             super.connectedCallback();
 
-            this.id = this.getAttribute('data-entity-id');
-            this.entityAnchor = this.shadowRoot.querySelector('a#entity-link');
+            this.id = this.item['data-entity-id'];
+          //  this.entityAnchor = this.shadowRoot.querySelector('a#entity-link');
 
             var entitycard = this;
 

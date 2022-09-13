@@ -32,7 +32,10 @@ export default {
         toggleSelect() {
             let activeId
             console.log(this.activeIds.includes(this.id), this.id, this.activeIds)
+            // todo today: emit title change to viewer object 
+
             var transcriptID = this.id;
+            this.$emit('titleChange', this.title, transcriptID)
             if(!this.active) {
                 if(this.$store.getters.getVizType == 'single') {
                     activeId = [] 
@@ -68,7 +71,7 @@ export default {
 
             }
         
-        }
+        }, 
     }
 }
 </script>

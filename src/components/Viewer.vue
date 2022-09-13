@@ -10,7 +10,8 @@
         </div>
           <header>Select an interview:</header>
           <ul ref='interview-menu' id='interview-menu'>
-            <MenuElement v-for="item in interviewLinks" :key="item.id" :id='item.id' :title='item.title' :activeIds="activeIds"/>
+            <MenuElement v-for="item in interviewLinks" :key="item.id" :id='item.id' :title='item.title' :activeIds="activeIds" @titleChange='updateTitle'/>
+
           </ul>
         </section>
         <section id='stage'>
@@ -22,7 +23,7 @@
                 <span class='metadata'>
                   <span class='metadata-field'>
                     <span class='label'>ID</span>
-                    <span class='value'></span>
+                    <span class='value'> {{ this.idtitle }} </span>
                   </span>
                 </span>
               </div>
@@ -37,7 +38,7 @@
           </header>
           <div id='visualizations'>
             <slot name='visualizations'>
-                <EntityBrowser v-if="selectedViz == 'entity-browser'"/>
+                <EntityBrowser v-if="selectedViz == 'entity-browser'" :multiInterview="multiInterview" ref='entityBrowser'/>
                 <Map v-if="selectedViz == 'map-tool'"/>
                 <!-- <Timeline v-if="selectedViz == 'timeline-tool'" /> -->
             </slot>
@@ -116,7 +117,7 @@ export default {
             activeIds: ['dvp_033'],
             infoPanelType: 'transcript',
             availableIds: [],
-            title: '',
+            title: 'ALLEN KEISWETTER',
             currId: 0,
             interviewLinks: [],
 
@@ -139,13 +140,13 @@ export default {
             entityFilter: 'all',
             vizType: 'single',
             foreground: {},
+            idtitle: 'dvp_033',
         }
     },
     watch: {
     '$store.state.activeIds': async function() {
         this.activeIds = this.$store.getters.getActiveIds
         await this.getAssociatedEntitiesByType();
-
     },
      '$store.state.selectedEntity': function() {
         this.selectedEntity = this.$store.getters.getSelectedEntity
@@ -191,8 +192,16 @@ export default {
         this.multiInterview[id].border = border;
         console.log('multi after for loop', this.multiInterview)
         this.$store.commit('setMultiInterview', this.multiInterview)
+        this.$refs.entityBrowser.init()
+
       }
     },
+    'multiInterview': {
+      deep: true,
+      handler: function(){
+        console.log('new multi in viewer watcher')
+      }
+    }
   },
   async mounted () {
     await this.getAPIResource('collections/transcripts','availableIds');
@@ -211,6 +220,12 @@ export default {
       })
       //this.dataReady = false;
     },
+
+    updateTitle(title, id) {
+      console.log('title, id', title, id)
+        this.title = title.replace('Narrator: ', '');
+        this.idtitle = id
+    }, 
     async getAssociatedEntitiesByType(type='people') {
 
     var res = []

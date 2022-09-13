@@ -60,8 +60,9 @@ const store = new Vuex.Store({
       state.foreground = fg;
     },
     setMultiInterview (state, m) {
-      console.log('in setter')
+      console.log('in setter', m)
       state.multiInterview = m;
+      console.log('in setter', state.multiInterview)
     }
   },
   getters: {

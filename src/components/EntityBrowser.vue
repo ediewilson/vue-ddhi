@@ -40,13 +40,22 @@ export default {
           filter: 'all',
           sort: 'appearance',
           sortIndex: {},
-          multiInterview: {},
+          mentionedEntities: [],
+          activeIds: ['dvp_033'],
+          eventDateIndex: {},
+          entityCardIndex: {},
+          supportedEntityTypes: ['events','persons','places','organizations', 'dates'],   
+          wikidataAPIUrl: 'https://www.wikidata.org/w/api.php?action=wbgetentities&format=json&languages=en&sitefilter=enwiki',
+          wd: null,
         }
     },
+    props: [
+      'multiInterview',
+    ],
      watch: {
-    '$store.state.activeIds': function() {
-        this.activeIds = this.$store.getters.getActiveIds
-    },
+      '$store.state.activeIds': function() {
+          this.activeIds = this.$store.getters.getActiveIds  
+      },
      '$store.state.selectedEntity': function() {
         this.selectedEntity = this.$store.getters.getSelectedEntity
     },
@@ -56,16 +65,28 @@ export default {
     // '$store.state.entityFilter': function() {
     //     this.filter = this.$store.getters.getEntityFilter
     // }
-    '$store.state.multiInterview': function() {
-        this.multiInterview = this.$store.getters.getMultiInterview
-        console.log('New multi interview in entity browser', this.multiInterview)
-    },
+    // '$store.state.multiInterview': function() {
+    //     this.multiInterview = this.$store.getters.getMultiInterview
+    //     console.log('New multi interview in entity browser', this.multiInterview)
+    // },
   },
   // created() {
   //   this.initFilters();
   //   this.initSort();
   // },
     methods: {
+      async init() {
+        console.log('init!')
+        if(this.multiInterview) {
+            console.log('here', this.multiInterview[this.activeIds[0]])
+            this.getMentionedEntities(this.multiInterview[this.activeIds[0]]);
+            console.log('mentioned entities here!', this.mentionedEntities)
+            await this.getEventData();
+            this.indexEntities();
+            this.render();
+          }
+        },
+    
   // @method observedAttributes()
   // @description Lists the attributes to monitor. Listed attributes will
   //   trigger the attributeChangedCallback when their values change.
@@ -100,7 +121,6 @@ export default {
   // TODO TODAY: need to call these when we get a new active id but only on the specific new id 
   async attributeChangedCallback(attrName) {
     if(attrName == 'ddhi-active-id') {
-      await this.getItemDataById();
       this.getMentionedEntities();
       await this.getEventData();
       this.indexEntities();
@@ -108,8 +128,97 @@ export default {
     }
   },
 
+// TODO ALSO TODAY: pass item as one id item from multi interview 
+getMentionedEntities(item,setProperty=true) {
+    var mentionedEntities = {};
+
+    this.supportedEntityTypes.forEach(function(e){
+      if (Object.prototype.hasOwnProperty.call(item, e)) {
+        item[e].forEach(function(entity) {
+          if(!entity.title){
+            entity.title = entity.when;
+            entity.resource_type = 'date';
+          }
+          mentionedEntities[entity.id] = entity;
+        });
+      }
+    });
+
+    if (setProperty==true) {
+      this.mentionedEntities = mentionedEntities;
+    }
+    console.log('mentioned entities in browser', this.mentionedEntities)
+    return mentionedEntities;
+  },
+
+   async getEventData() {
+    const delay = ms => new Promise(res => setTimeout(res, ms));
+
+    this.eventDateIndex = {};
+// todo : fix for multi
+    var qids = [];
+    //var id = this.getActiveIdFromAttribute();
+    const ids = this.activeIds
+    await Promise.all(ids.map(async (id) => {
+      this.eventData = this.multiInterview[id].events
+      for (var i=0;i<this.eventData.length;i++) {
+        if (typeof this.eventData[i] !== "undefined" && this.eventData[i].qid)
+          qids.push(this.eventData[i].qid);
+      }
+  
+      if (qids.length > 0) {
+        await this.getWikiData(qids);
+        await delay(2000);
+
+        var wikiDataEvents = this.wd;
+
+        console.log('wikidata events:', wikiDataEvents)
+  
+        for (var qid in wikiDataEvents.entities) {
+          var claims = wikiDataEvents.entities[qid].claims; // Information claims from Wikidata... in other words the metadata
+  
+          this.eventDateIndex[qid] = {
+            startDate: Object.prototype.hasOwnProperty.call(claims, 'P580') ? claims.P580[0].mainsnak.datavalue.value.time : null,
+            endDate: Object.prototype.hasOwnProperty.call(claims, 'P582') ? claims.P582[0].mainsnak.datavalue.value.time : null,
+            pointInTime: Object.prototype.hasOwnProperty.call(claims, 'P585') ? claims.P585[0].mainsnak.datavalue.value.time: null,
+          }
+  
+          this.eventDateIndex[qid].sortDateStart = this.eventDateIndex[qid].startDate ? this.eventDateIndex[qid].startDate : this.eventDateIndex[qid].pointInTime;
+          this.eventDateIndex[qid].sortDateEnd = this.eventDateIndex[qid].endDate ? this.eventDateIndex[qid].endDate : this.eventDateIndex[qid].pointInTime;
+        }
+      }
+    }))
+  },
+
+    async getWikiData(qids=[],props=['sitelinks/urls','claims']) {
+
+    if (qids.length > 50) {
+      console.log('Maximum number of Wikidata ids exceeded.');
+    }
+    this.wd = null; 
+    // Note &origin=* parameter required for MediaWiki/Wikidata requests
+    this.$axios.get(this.wikidataAPIUrl + '&origin=*' + '&props=' + props.join('|') + '&ids=' + qids.join('|'), {mode: 'cors'}).then((result) => {
+        
+        console.log(result.data)
+       // this.connectedCallback();
+        // this.getItemDataById();
+        this.wd = result.data;
+        // return result.data;
+    })
+   // const response = await fetch(this.wikidataAPIUrl + '&origin=*' + '&props=' + props.join('|') + '&ids=' + qids.join('|'), {mode: 'cors'});
+
+    //const response = await fetch(this.wikidataAPIUrl + '&props=' + props.join('|') + '&ids=' + qids.join('|'));
+    // const result = await response.json();
 
 
+    // if (!response.ok) {
+    //   const message = `An error has occured: ${response.status}`;
+    //   throw new Error(message);
+    // }
+
+    //return result;
+
+  },
  
 
   filterEntities() {
@@ -169,15 +278,40 @@ export default {
     window.setTimeout(function() { grid.style.display = 'flex'; grid.style.opacity = 1 }, this.heartbeat * 2)
   },
 
+  getEntitiesByOrderOfMention(item=null) {
+    if (item==null) {
+      item = this.multiInterview[this.activeIds[0]];
+    }
+
+    var orderedEntities = [];
+
+    // Thank you https://davidwalsh.name/convert-html-stings-dom-nodes !
+
+    let transcript = document.createRange().createContextualFragment(item.transcript);
+
+    transcript.querySelectorAll('span, date').forEach(function (e){
+      if (e.hasAttribute('data-entity-id')) {
+        orderedEntities.push(e.getAttribute('data-entity-id'));
+      }
+      else if (e.hasAttribute('id')) {
+        
+        orderedEntities.push(e.getAttribute('id'));
+        // e.setAttribute('data-entity-id', e.getAttribute('when'))
+        // orderedEntities.push(e.getAttribute('data-entity-id'));
+      }
+    });
+    return orderedEntities;
+  },
+
   indexEntities() {
     this.resetIndices();
     var _this = this;
     // var item = this.getItemData();
-    var item = this.getItemData();
+    var item = this.multiInterview[this.activeIds[0]];
     this.dateEntities = item.dates;
-    const entityGrid = this.$refs.entityGrid;
+    var entityGrid = [];
 
-    entityGrid.textContent = '';
+    // entityGrid.textContent = '';
 
     // count appearances of a specific entity
     var entityMention = {};
@@ -195,10 +329,6 @@ export default {
       '11': {name: 'November', start: '1', end: '30'},
       '12': {name: 'December', start: '1', end: '31'}
     }
-
-    // count order of appearance
-
-    // var i = 1;
 
     // Iterate over appearances by order of mention
 
@@ -228,30 +358,28 @@ export default {
       // Create a new entity card, set attributes, and attach the entity data
 
       // var entity = _this.mentionedEntities[id];
-      var entityCard = document.createElement('entity-card');
-      entityCard.setAttribute('data-title',entity.title);
-      entityCard.setAttribute('data-entity-id',entity.id);
-      entityCard.setAttribute('data-entity-type',entity.resource_type);
+      var entityCard = {};
+      entityCard['data-title'] = entity.title;
+      entityCard['data-entity-id'] = entity.id;
+      entityCard['data-entity-type'] = entity.resource_type;
       if(entity.resource_type !== 'date') {
-        entityCard.setAttribute('data-mention',entityMention[entity.id]);
+        entityCard['data-mention'] = entityMention[entity.id];
       }
       else {
-        entityCard.setAttribute('data-mention', entityMention[entity.when]);
+        entityCard['data-mention'] = entityMention[entity.when];
       }
-      entityCard.setAttribute('data-appearance',i);
-      entityCard.setData('entity',entity);
-      entityCard.injectViewerObject(_this.viewer);
-
+      entityCard['data-appearance'] = i;
+      entityCard['entity'] = entity;
       // Add date information as attributes
 
 
       if (entity.resource_type === 'event' && Object.prototype.hasOwnProperty.call(_this.eventDateIndex, entity.id)) {
-        entityCard.setAttribute('data-start-date',_this.eventDateIndex[entity.id].startDate);
-        entityCard.setAttribute('data-end-date',_this.eventDateIndex[entity.id].endDate);
-        entityCard.setAttribute('data-point-in-time',_this.eventDateIndex[entity.id].pointInTime);
-        entityCard.setAttribute('data-end-date',_this.eventDateIndex[entity.id].endDate);
-        entityCard.setAttribute('data-sort-date-start',_this.eventDateIndex[entity.id].sortDateStart);
-        entityCard.setAttribute('data-sort-date-end',_this.eventDateIndex[entity.id].sortDateEnd);
+        entityCard['data-start-date'] = _this.eventDateIndex[entity.id].startDate;
+        entityCard['data-end-date'] = _this.eventDateIndex[entity.id].endDate;
+        entityCard['data-point-in-time'] = _this.eventDateIndex[entity.id].pointInTime;
+        entityCard['data-end-date'] = _this.eventDateIndex[entity.id].endDate;
+        entityCard['data-sort-date-start'] = _this.eventDateIndex[entity.id].sortDateStart;
+        entityCard['data-sort-date-end']  = _this.eventDateIndex[entity.id].sortDateEnd;
       }
 
       i++;
@@ -261,47 +389,45 @@ export default {
       if(entity.resource_type !== 'date') {
         var labelstr = entity.title;
         labelstr = labelstr.length > 35 ? labelstr.substring(0,30) + '...' : labelstr;
-        label.appendChild(document.createTextNode(labelstr));
+        entityCard['label'] = labelstr;
       }
       else {
         let month;
         if(entity.when.length === 4) {
-          label.appendChild(document.createTextNode(entity.when));
+          entityCard['label'] = entity.when;
         }
         else if(entity.when.length === 7) {
           month = entity.when.substring(5,7)
-          
-          label.appendChild(document.createTextNode(monthLengths[month].name + ' ' + entity.when.substring(0,4)));
+          entityCard['label'] = monthLengths[month].name + ' ' + entity.when.substring(0,4);
         }
         else if(entity.when.length === 10) {
           month = entity.when.substring(5,7)
-          
-          label.appendChild(document.createTextNode(monthLengths[month].name + ' ' + entity.when.substring(8,10) + ', ' + entity.when.substring(0,4)));
+          entityCard['label'] = monthLengths[month].name + ' ' + entity.when.substring(8,10) + ', ' + entity.when.substring(0,4);
         }
       }
 
       var iconlabel = document.createElement('div');
       iconlabel.setAttribute('slot','iconlabel');
       if(entity.resource_type !== 'date') {
-      iconlabel.appendChild(document.createTextNode(entityMention[entity.id]));
+       entityCard['icon-label'] = entityMention[entity.id];
       }
       else { 
-        iconlabel.appendChild(document.createTextNode(entityMention[entity.when]));
+        entityCard['icon-label'] = entityMention[entity.when];
       }
-      var heading = document.createElement('h3');
-      heading.appendChild(document.createTextNode(entity.title));
+      // var heading = document.createElement('h3');
+      // heading.appendChild(document.createTextNode(entity.title));
+      entityCard['icon-label'] = entity.title
+      // var description = document.createElement('description');
 
-      var description = document.createElement('description');
 
+      // var contents = document.createElement('div');
+      // contents.setAttribute('slot','contents');
+      // contents.appendChild(heading);
+      // contents.appendChild(description);
 
-      var contents = document.createElement('div');
-      contents.setAttribute('slot','contents');
-      contents.appendChild(heading);
-      contents.appendChild(description);
-
-      entityCard.appendChild(iconlabel);
-      entityCard.appendChild(label);
-      entityCard.appendChild(contents);
+      // entityCard.appendChild(iconlabel);
+      // entityCard.appendChild(label);
+      // entityCard.appendChild(contents);
 
       _this.indexEntityByAttribute('data-title',entityCard); // Index cards based on attributes
       _this.indexEntityByAttribute('data-appearance',entityCard,false,4);
@@ -309,10 +435,12 @@ export default {
 
       _this.entityCardIndex[entity.id] = entityCard;  // Add card to general index for lookup
       if(entity.title) {
-        this.entityGrid.appendChild(entityCard);  // Add card to grid
+        console.log('entity card', entityCard, entityGrid)
+        entityGrid.push(entityCard);  // Add card to grid
       }
     });
-
+    console.log('entity grid', entityGrid)
+    this.entityGrid = entityGrid;
     this.sortIndices();
 
   },
@@ -337,11 +465,11 @@ export default {
 
     // Padding can help sort numbers properly.
 
-    var key = padNumeric == 0 ? entity.getAttribute(attr) : String(entity.getAttribute(attr)).padStart(padNumeric,'0');
+    var key = padNumeric == 0 ? entity[attr] : String(entity[attr]).padStart(padNumeric,'0');
 
     var prop = {
       key: key,
-      id: entity.getAttribute('data-entity-id')
+      id: entity['data-entity-id']
     };
 
     function uniqueKey(a) {
@@ -373,8 +501,8 @@ export default {
     }
 
     var prop = {
-      key: parseInt(entity.getAttribute('data-mention')), // key is the frequency of mentions
-      id: entity.getAttribute('data-entity-id') // id is the id of the entity
+      key: parseInt(entity['data-mention']), // key is the frequency of mentions
+      id: entity['data-entity-id'] // id is the id of the entity
     };
 
     // find the highest number of mentions
